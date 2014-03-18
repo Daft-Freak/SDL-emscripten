@@ -1507,6 +1507,8 @@ case $os in
 		;;
 	-nacl*)
 		;;
+	-emscripten*)
+		;;
 	-none)
 		;;
 	*)
