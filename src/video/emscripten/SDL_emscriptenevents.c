@@ -448,7 +448,6 @@ Emscripten_HandleResize(int eventType, const EmscriptenUiEvent *uiEvent, void *u
     {
         if(window_data->window->flags & SDL_WINDOW_RESIZABLE)
         {
-            emscripten_set_canvas_size(uiEvent->windowInnerWidth, uiEvent->windowInnerHeight);
             SDL_SendWindowEvent(window_data->window, SDL_WINDOWEVENT_RESIZED, uiEvent->windowInnerWidth, uiEvent->windowInnerHeight);
         }
     }
@@ -463,7 +462,6 @@ Emscripten_HandleResize(int eventType, const EmscriptenUiEvent *uiEvent, void *u
                 return Module['canvas'].clientHeight;
             });
 
-            emscripten_set_canvas_size(w, h);
             SDL_SendWindowEvent(window_data->window, SDL_WINDOWEVENT_RESIZED, w, h);
         }
     }
@@ -495,7 +493,7 @@ Emscripten_RegisterEventHandlers(SDL_WindowData *data)
 
     emscripten_set_fullscreenchange_callback("#document", data, 0, Emscripten_HandleFullscreenChange);
 
-    emscripten_set_resize_callback("#window", data, 0, Emscripten_HandleResize);
+    emscripten_set_resize_callback("#canvas", data, 0, Emscripten_HandleResize);
 }
 
 void
@@ -521,7 +519,7 @@ Emscripten_UnregisterEventHandlers(SDL_WindowData *data)
 
     emscripten_set_fullscreenchange_callback("#document", NULL, 0, NULL);
 
-    emscripten_set_resize_callback("#window", NULL, 0, NULL);
+    emscripten_set_resize_callback("#canvas", NULL, 0, NULL);
 }
 
 #endif /* SDL_VIDEO_DRIVER_EMSCRIPTEN */
