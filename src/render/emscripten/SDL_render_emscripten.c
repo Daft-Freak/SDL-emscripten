@@ -49,6 +49,32 @@ static int emscripten_canvas_get_default()
     });
 }
 
+/*?*/
+static int emscripten_canvas_create(int w, int h)
+{
+    return EM_ASM_INT({
+        var canvas = document.createElement("canvas");
+        canvas.width = $0;
+        canvas.height = $1;
+
+        SDL2.canvas.canvases.push(canvas);
+        SDL2.canvas.contexts.push(null);
+        return SDL2.canvas.canvases.length - 1;
+    }, w, h);
+}
+
+static void emscripten_canvas_destroy(int id)
+{
+    EM_ASM_ARGS(
+    {
+        var canvas = SDL2.canvas.canvases[$0];
+        if (canvas) {
+            SDL2.canvas.canvases[$0] = null;
+            SDL2.canvas.contexts[$0] = null;
+        }
+    }, id);
+}
+
 static void emscripten_canvas_get_size(int id, int *w, int *h)
 {
     EM_ASM_ARGS(
@@ -164,6 +190,7 @@ static void emscripten_canvas_2d_fill(int id)
         }
     }, id);
 }
+
 static void emscripten_canvas_2d_stroke(int id)
 {
     EM_ASM_ARGS(
@@ -174,6 +201,67 @@ static void emscripten_canvas_2d_stroke(int id)
         }
     }, id);
 }
+
+/* other variants of this? names?*/
+static void emscripten_canvas_2d_draw_canvas(int id, int srcId, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        var srcCanvas = SDL2.canvas.canvases[$1];
+        if (ctx && srcCanvas) {
+            ctx.drawImage(srcCanvas, $2, $3, $4, $5, $6, $7, $8, $9);
+        }
+    }, id, srcId, sx, sy, sw, sh, dx, dy, dw, dh);
+}
+
+static void emscripten_canvas_2d_put_image_data(int id, const void *data, double x, double y, int w, int h, int use_alpha)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            //based on library_sdl.js SDL_UnlockSurface
+            var image = ctx.createImageData($4, $5);
+            var data = image.data;
+            var src = $1 >> 2;
+            var dst = 0;
+            var num;
+            if (typeof CanvasPixelArray !== 'undefined' && data instanceof CanvasPixelArray) {
+                // IE10/IE11: ImageData objects are backed by the deprecated CanvasPixelArray,
+                // not UInt8ClampedArray. These don't have buffers, so we need to revert
+                // to copying a byte at a time. We do the undefined check because modern
+                // browsers do not define CanvasPixelArray anymore.
+                num = data.length;
+                while (dst < num) {
+                    var val = HEAP32[src]; // This is optimized. Instead, we could do {{{ makeGetValue('buffer', 'dst', 'i32') }}};
+                    data[dst  ] = val & 0xff;
+                    data[dst+1] = (val >> 8) & 0xff;
+                    data[dst+2] = (val >> 16) & 0xff;
+                    data[dst+3] = !$6 ? 0xff : ((val >> 24) & 0xff);
+                    src++;
+                    dst += 4;
+                }
+            } else {
+                var data32 = new Uint32Array(data.buffer);
+                num = data32.length;
+                if (!$6) {
+                    while (dst < num) {
+                        // HEAP32[src++] is an optimization. Instead, we could do {{{ makeGetValue('buffer', 'dst', 'i32') }}};
+                        data32[dst++] = HEAP32[src++] | 0xff000000;
+                    }
+                } else {
+                    while (dst < num) {
+                        data32[dst++] = HEAP32[src++];
+                    }
+                }
+            }
+
+            ctx.putImageData(image, $2, $3);
+        }
+    }, id, data, x, y, w, h, use_alpha);
+}
+
 
 static void emscripten_canvas_2d_move_to(int id, double x, double y)
 {
@@ -211,8 +299,8 @@ SDL_RenderDriver Emscripten_RenderDriver = {
         "emscripten",
         (SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE),
         2,
-        {SDL_PIXELFORMAT_ARGB8888,
-        SDL_PIXELFORMAT_RGB888},
+        {SDL_PIXELFORMAT_ABGR8888,
+        SDL_PIXELFORMAT_BGR888},
         0,
         0
     }
@@ -224,7 +312,9 @@ SDL_RenderDriver Emscripten_RenderDriver = {
 
 typedef struct Emscripten_TextureData
 {
-
+    int canvas;
+    void *pixel_data;
+    size_t pitch;
 } Emscripten_TextureData;
 
 typedef struct Emscripten_DriverData
@@ -282,6 +372,39 @@ static void Emscripten_DestroyTexture(SDL_Renderer *renderer, SDL_Texture *textu
 static int
 Emscripten_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture)
 {
+    Emscripten_TextureData *data;
+
+    /* Allocate a texture struct */
+    data = (Emscripten_TextureData *)SDL_calloc(1, sizeof(Emscripten_TextureData));
+    if (!data) {
+        return SDL_OutOfMemory();
+    }
+
+    data->canvas = emscripten_canvas_create(texture->w, texture->h);
+    if(emscripten_canvas_create_context(data->canvas, EMSCRIPTEN_CANVAS_CONTEXT_2D) < 0) {
+        SDL_free(data);
+        return -1;
+    }
+    /*test*/
+    emscripten_canvas_2d_set_fill_style(data->canvas, "rgba(0,0,255,1)");
+    emscripten_canvas_2d_fill_rect(data->canvas, 0, 0, texture->w, texture->h);
+    /**/
+
+    /* Allocate a blob for image renderdata */
+    if (texture->access == SDL_TEXTUREACCESS_STREAMING) {
+        size_t size;
+        data->pitch = texture->w * SDL_BYTESPERPIXEL(texture->format);
+        size = texture->h * data->pitch;
+
+        data->pixel_data = SDL_calloc(1, size);
+        if (!data->pixel_data) {
+            SDL_free(data);
+            return SDL_OutOfMemory();
+        }
+    }
+
+    texture->driverdata = data;
+
     return 0;
 }
 
@@ -289,6 +412,37 @@ static int
 Emscripten_UpdateTexture(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_Rect *rect,
                     const void *pixels, int pitch)
 {
+    Emscripten_TextureData *tdata = (Emscripten_TextureData *)texture->driverdata;
+    Uint8 *blob = NULL;
+    Uint8 *src;
+    int srcPitch;
+    int y;
+
+    /* Bail out if we're supposed to update an empty rectangle */
+    if (rect->w <= 0 || rect->h <= 0)
+        return 0;
+
+    /* Reformat the texture data into a tightly packed array */
+    srcPitch = rect->w * SDL_BYTESPERPIXEL(texture->format);
+    src = (Uint8 *)pixels;
+    if (pitch != srcPitch) {
+        blob = (Uint8 *)SDL_malloc(srcPitch * rect->h);
+        if (!blob) {
+            return SDL_OutOfMemory();
+        }
+        src = blob;
+        for (y = 0; y < rect->h; ++y)
+        {
+            SDL_memcpy(src, pixels, srcPitch);
+            src += srcPitch;
+            pixels = (Uint8 *)pixels + pitch;
+        }
+        src = blob;
+    }
+
+    emscripten_canvas_2d_put_image_data(tdata->canvas, src, rect->x, rect->y, rect->w, rect->h, texture->format == SDL_PIXELFORMAT_ABGR8888);
+    SDL_free(blob);
+
     return 0;
 }
 
@@ -313,7 +467,15 @@ Emscripten_SetRenderTarget(SDL_Renderer * renderer, SDL_Texture * texture)
 static void
 Emscripten_DestroyTexture(SDL_Renderer *renderer, SDL_Texture *texture)
 {
+    Emscripten_TextureData *tdata = (Emscripten_TextureData *)texture->driverdata;
 
+    /* Destroy the texture */
+    if (tdata) {
+        emscripten_canvas_destroy(tdata->canvas);
+        SDL_free(tdata->pixel_data);
+        SDL_free(tdata);
+        texture->driverdata = NULL;
+    }
 }
 
 /*************************************************************************************************
@@ -428,6 +590,10 @@ static int
 Emscripten_RenderCopy(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_Rect *srcrect,
                  const SDL_FRect *dstrect)
 {
+    Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
+    Emscripten_TextureData *tdata = (Emscripten_TextureData *)texture->driverdata;
+
+    emscripten_canvas_2d_draw_canvas(data->default_canvas, tdata->canvas, srcrect->x, srcrect->y, srcrect->w, srcrect->h, dstrect->x, dstrect->y, dstrect->w, dstrect->h);
     return 0;
 }
 
