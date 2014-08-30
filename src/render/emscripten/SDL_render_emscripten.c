@@ -385,10 +385,6 @@ Emscripten_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture)
         SDL_free(data);
         return -1;
     }
-    /*test*/
-    emscripten_canvas_2d_set_fill_style(data->canvas, "rgba(0,0,255,1)");
-    emscripten_canvas_2d_fill_rect(data->canvas, 0, 0, texture->w, texture->h);
-    /**/
 
     /* Allocate a blob for image renderdata */
     if (texture->access == SDL_TEXTUREACCESS_STREAMING) {
@@ -450,12 +446,29 @@ static int
 Emscripten_LockTexture(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_Rect *rect,
                   void **pixels, int *pitch)
 {
+    Emscripten_TextureData *tdata = (Emscripten_TextureData *)texture->driverdata;
+
+    /* Retrieve the buffer/pitch for the specified region */
+    *pixels = (Uint8 *)tdata->pixel_data +
+              (tdata->pitch * rect->y) +
+              (rect->x * SDL_BYTESPERPIXEL(texture->format));
+    *pitch = tdata->pitch;
+
     return 0;
 }
 
 static void
 Emscripten_UnlockTexture(SDL_Renderer *renderer, SDL_Texture *texture)
 {
+    Emscripten_TextureData *tdata = (Emscripten_TextureData *)texture->driverdata;
+    SDL_Rect rect;
+
+    /* We do whole texture updates, at least for now */
+    rect.x = 0;
+    rect.y = 0;
+    rect.w = texture->w;
+    rect.h = texture->h;
+    Emscripten_UpdateTexture(renderer, texture, &rect, tdata->pixel_data, tdata->pitch);
 }
 
 static int
