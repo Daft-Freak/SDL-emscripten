@@ -374,16 +374,33 @@ Emscripten_RenderDrawLines(SDL_Renderer *renderer, const SDL_FPoint *points, int
     Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
     char buf[30];
     int idx;
+    double x, y;
 
     SDL_snprintf(buf, 30, "rgba(%i,%i,%i,%f)", renderer->r, renderer->g, renderer->b, renderer->a / 255.0f);
     emscripten_canvas_2d_set_stroke_style(data->default_canvas, buf);
 
     emscripten_canvas_2d_begin_path(data->default_canvas);
-    emscripten_canvas_2d_move_to(data->default_canvas, points[0].x, points[0].y);
+    x = points[0].x;
+    y = points[0].y;
+    if (points[1].x != points[0].x) {
+        y += 0.5;
+    }
+    if (points[1].y != points[0].y) {
+        x += 0.5;
+    }
+
+    emscripten_canvas_2d_move_to(data->default_canvas, x, y);
 
     for (idx = 1; idx < count; ++idx) {
-        const SDL_FPoint *point = &points[idx];
-        emscripten_canvas_2d_line_to(data->default_canvas, point->x, point->y);
+        x = points[idx].x;
+        y = points[idx].y;
+        if (idx < count - 1 || points[idx].x != points[idx - 1].x) {
+            y += 0.5;
+        }
+        if (idx < count - 1 || points[idx].y != points[idx - 1].y) {
+            x += 0.5;
+        }
+        emscripten_canvas_2d_line_to(data->default_canvas, x, y);
     }
     emscripten_canvas_2d_stroke(data->default_canvas);
     return 0;
