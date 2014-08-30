@@ -110,6 +110,17 @@ static int emscripten_canvas_create_context(int id, int type)
 }
 
 /* 2d context */
+static void emscripten_canvas_2d_set_stroke_style(int id, const char *style)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.strokeStyle = Pointer_stringify($1);
+        }
+    }, id, style);
+}
+
 static void emscripten_canvas_2d_set_fill_style(int id, const char *style)
 {
     EM_ASM_ARGS(
@@ -130,6 +141,60 @@ static void emscripten_canvas_2d_fill_rect(int id, double x, double y, double w,
             ctx.fillRect($1, $2, $3, $4);
         }
     }, id, x, y, w, h);
+}
+
+static void emscripten_canvas_2d_begin_path(int id)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.beginPath();
+        }
+    }, id);
+}
+
+static void emscripten_canvas_2d_fill(int id)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.fill();
+        }
+    }, id);
+}
+static void emscripten_canvas_2d_stroke(int id)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.stroke();
+        }
+    }, id);
+}
+
+static void emscripten_canvas_2d_move_to(int id, double x, double y)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.moveTo($1, $2);
+        }
+    }, id, x, y);
+}
+
+static void emscripten_canvas_2d_line_to(int id, double x, double y)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.lineTo($1, $2);
+        }
+    }, id, x, y);
 }
 
 /* */
@@ -288,12 +353,39 @@ Emscripten_RenderClear(SDL_Renderer * renderer)
 static int
 Emscripten_RenderDrawPoints(SDL_Renderer *renderer, const SDL_FPoint *points, int count)
 {
+    Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
+    char buf[30];
+    int idx;
+
+    SDL_snprintf(buf, 30, "rgba(%i,%i,%i,%f)", renderer->r, renderer->g, renderer->b, renderer->a / 255.0f);
+    emscripten_canvas_2d_set_fill_style(data->default_canvas, buf);
+
+    for (idx = 0; idx < count; ++idx) {
+        const SDL_FPoint *point = &points[idx];
+        emscripten_canvas_2d_fill_rect(data->default_canvas, point->x, point->y, 1, 1);
+    }
+
     return 0;
 }
 
 static int
 Emscripten_RenderDrawLines(SDL_Renderer *renderer, const SDL_FPoint *points, int count)
 {
+    Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
+    char buf[30];
+    int idx;
+
+    SDL_snprintf(buf, 30, "rgba(%i,%i,%i,%f)", renderer->r, renderer->g, renderer->b, renderer->a / 255.0f);
+    emscripten_canvas_2d_set_stroke_style(data->default_canvas, buf);
+
+    emscripten_canvas_2d_begin_path(data->default_canvas);
+    emscripten_canvas_2d_move_to(data->default_canvas, points[0].x, points[0].y);
+
+    for (idx = 1; idx < count; ++idx) {
+        const SDL_FPoint *point = &points[idx];
+        emscripten_canvas_2d_line_to(data->default_canvas, point->x, point->y);
+    }
+    emscripten_canvas_2d_stroke(data->default_canvas);
     return 0;
 }
 
