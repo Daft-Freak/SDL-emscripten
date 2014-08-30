@@ -352,6 +352,9 @@ Emscripten_UpdateClipRect(SDL_Renderer * renderer)
 static void
 Emscripten_DestroyRenderer(SDL_Renderer *renderer)
 {
+    Emscripten_DriverContext *data = (Emscripten_DriverContext *)renderer->driverdata;
+
+    SDL_free(data);
     SDL_free(renderer);
 }
 
