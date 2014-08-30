@@ -158,6 +158,28 @@ static void emscripten_canvas_2d_restore(int id)
     }, id);
 }
 
+static void emscripten_canvas_2d_scale(int id, double x, double y)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.scale($1, $2);
+        }
+    }, id, x, y);
+}
+
+static void emscripten_canvas_2d_rotate(int id, double angle)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.rotate($1);
+        }
+    }, id, angle);
+}
+
 static void emscripten_canvas_2d_translate(int id, double x, double y)
 {
     EM_ASM_ARGS(
@@ -168,7 +190,6 @@ static void emscripten_canvas_2d_translate(int id, double x, double y)
         }
     }, id, x, y);
 }
-
 
 static void emscripten_canvas_2d_set_stroke_style(int id, const char *style)
 {
@@ -343,6 +364,10 @@ static void emscripten_canvas_2d_rect(int id, double x, double y, double w, doub
 
 
 /* */
+
+#define PI   3.14159265358979f
+
+#define degToRad(x) ((x)*PI/180.f)
 
 /*************************************************************************************************
  * Bootstrap data                                                                                *
@@ -714,6 +739,19 @@ static int
 Emscripten_RenderCopyEx(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_Rect *srcrect,
                  const SDL_FRect *dstrect, const double angle, const SDL_FPoint *center, const SDL_RendererFlip flip)
 {
+    Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
+    Emscripten_TextureData *tdata = (Emscripten_TextureData *)texture->driverdata;
+
+    emscripten_canvas_2d_save(data->default_canvas);
+
+    emscripten_canvas_2d_translate(data->default_canvas, center->x + dstrect->x, center->y + dstrect->y);
+    emscripten_canvas_2d_rotate(data->default_canvas, degToRad(angle));
+    emscripten_canvas_2d_scale(data->default_canvas, flip & SDL_FLIP_HORIZONTAL ? -1 : 1, flip & SDL_FLIP_VERTICAL ? -1 : 1);
+    emscripten_canvas_2d_translate(data->default_canvas, -center->x, -center->y);
+
+    emscripten_canvas_2d_draw_canvas(data->default_canvas, tdata->canvas, srcrect->x, srcrect->y, srcrect->w, srcrect->h, 0, 0, dstrect->w, dstrect->h);
+
+    emscripten_canvas_2d_restore(data->default_canvas);
     return 0;
 }
 
