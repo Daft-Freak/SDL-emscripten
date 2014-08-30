@@ -436,6 +436,7 @@ typedef struct Emscripten_TextureData
 typedef struct Emscripten_DriverData
 {
     int default_canvas;
+    int current_canvas;
 } Emscripten_DriverData;
 
 /*************************************************************************************************
@@ -459,8 +460,8 @@ Emscripten_UpdateViewport(SDL_Renderer * renderer)
 {
     Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
 
-    emscripten_canvas_2d_restore(data->default_canvas);
-    emscripten_canvas_2d_save(data->default_canvas);
+    emscripten_canvas_2d_restore(data->current_canvas);
+    emscripten_canvas_2d_save(data->current_canvas);
     Emscripten_UpdateViewClip(renderer);
     return 0;
 }
@@ -470,8 +471,8 @@ Emscripten_UpdateClipRect(SDL_Renderer * renderer)
 {
     Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
 
-    emscripten_canvas_2d_restore(data->default_canvas);
-    emscripten_canvas_2d_save(data->default_canvas);
+    emscripten_canvas_2d_restore(data->current_canvas);
+    emscripten_canvas_2d_save(data->current_canvas);
     Emscripten_UpdateViewClip(renderer);
     return 0;
 }
@@ -491,7 +492,7 @@ Emscripten_UpdateViewClip(SDL_Renderer *renderer)
     Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
     const SDL_Rect *vRect = &renderer->viewport;
 
-    emscripten_canvas_2d_begin_path(data->default_canvas);
+    emscripten_canvas_2d_begin_path(data->current_canvas);
 
     if (renderer->clipping_enabled) {
         const SDL_Rect *cRect = &renderer->clip_rect;
@@ -499,13 +500,13 @@ Emscripten_UpdateViewClip(SDL_Renderer *renderer)
 
         SDL_IntersectRect(cRect, vRect, &r);
 
-        emscripten_canvas_2d_rect(data->default_canvas, r.x, r.y, r.w, r.h);
+        emscripten_canvas_2d_rect(data->current_canvas, r.x, r.y, r.w, r.h);
 
     } else {
-        emscripten_canvas_2d_rect(data->default_canvas, vRect->x, vRect->y, vRect->w, vRect->h);
+        emscripten_canvas_2d_rect(data->current_canvas, vRect->x, vRect->y, vRect->w, vRect->h);
     }
-    emscripten_canvas_2d_clip(data->default_canvas);
-    emscripten_canvas_2d_translate(data->default_canvas, vRect->x, vRect->y);
+    emscripten_canvas_2d_clip(data->current_canvas);
+    emscripten_canvas_2d_translate(data->current_canvas, vRect->x, vRect->y);
 }
 
 /*************************************************************************************************
@@ -553,6 +554,17 @@ Emscripten_CreateTexture(SDL_Renderer *renderer, SDL_Texture *texture)
     }
 
     texture->driverdata = data;
+
+    if (texture->access == SDL_TEXTUREACCESS_TARGET) {
+        const char *hint = SDL_GetHint(SDL_HINT_RENDER_SCALE_QUALITY);
+
+        if (!hint || *hint == '0' || SDL_strcasecmp(hint, "nearest") == 0) {
+            emscripten_canvas_2d_set_image_smoothing(data->canvas, 0);
+        } else {
+            emscripten_canvas_2d_set_image_smoothing(data->canvas, 1);
+        }
+        emscripten_canvas_2d_save(data->canvas);
+    }
 
     return 0;
 }
@@ -627,6 +639,19 @@ Emscripten_UnlockTexture(SDL_Renderer *renderer, SDL_Texture *texture)
 static int
 Emscripten_SetRenderTarget(SDL_Renderer * renderer, SDL_Texture * texture)
 {
+    Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
+    Emscripten_TextureData *tdata = NULL;
+
+    if (texture == NULL) {
+        data->current_canvas = data->default_canvas;
+    } else {
+        tdata = (Emscripten_TextureData *)texture->driverdata;
+        data->current_canvas = tdata->canvas;
+
+        emscripten_canvas_2d_restore(data->current_canvas);
+        emscripten_canvas_2d_save(data->current_canvas);
+        Emscripten_UpdateViewClip(renderer);
+    }
     return 1;
 }
 
@@ -669,16 +694,16 @@ Emscripten_RenderClear(SDL_Renderer * renderer)
     int w, h;
 
     /* undo clipping */
-    emscripten_canvas_2d_restore(data->default_canvas);
+    emscripten_canvas_2d_restore(data->current_canvas);
 
     /* cache this? */
-    emscripten_canvas_get_size(data->default_canvas, &w, &h);
+    emscripten_canvas_get_size(data->current_canvas, &w, &h);
 
     SDL_snprintf(buf, 30, "rgba(%i,%i,%i,%f)", renderer->r, renderer->g, renderer->b, renderer->a / 255.0f);
-    emscripten_canvas_2d_set_fill_style(data->default_canvas, buf);
-    emscripten_canvas_2d_fill_rect(data->default_canvas, 0, 0, w, h);
+    emscripten_canvas_2d_set_fill_style(data->current_canvas, buf);
+    emscripten_canvas_2d_fill_rect(data->current_canvas, 0, 0, w, h);
 
-    emscripten_canvas_2d_save(data->default_canvas);
+    emscripten_canvas_2d_save(data->current_canvas);
     Emscripten_UpdateViewClip(renderer);
 
     return 0;
@@ -692,11 +717,11 @@ Emscripten_RenderDrawPoints(SDL_Renderer *renderer, const SDL_FPoint *points, in
     int idx;
 
     SDL_snprintf(buf, 30, "rgba(%i,%i,%i,%f)", renderer->r, renderer->g, renderer->b, renderer->a / 255.0f);
-    emscripten_canvas_2d_set_fill_style(data->default_canvas, buf);
+    emscripten_canvas_2d_set_fill_style(data->current_canvas, buf);
 
     for (idx = 0; idx < count; ++idx) {
         const SDL_FPoint *point = &points[idx];
-        emscripten_canvas_2d_fill_rect(data->default_canvas, point->x, point->y, 1, 1);
+        emscripten_canvas_2d_fill_rect(data->current_canvas, point->x, point->y, 1, 1);
     }
 
     return 0;
@@ -711,9 +736,9 @@ Emscripten_RenderDrawLines(SDL_Renderer *renderer, const SDL_FPoint *points, int
     double x, y;
 
     SDL_snprintf(buf, 30, "rgba(%i,%i,%i,%f)", renderer->r, renderer->g, renderer->b, renderer->a / 255.0f);
-    emscripten_canvas_2d_set_stroke_style(data->default_canvas, buf);
+    emscripten_canvas_2d_set_stroke_style(data->current_canvas, buf);
 
-    emscripten_canvas_2d_begin_path(data->default_canvas);
+    emscripten_canvas_2d_begin_path(data->current_canvas);
     x = points[0].x;
     y = points[0].y;
     if (points[1].x != points[0].x) {
@@ -723,7 +748,7 @@ Emscripten_RenderDrawLines(SDL_Renderer *renderer, const SDL_FPoint *points, int
         x += 0.5;
     }
 
-    emscripten_canvas_2d_move_to(data->default_canvas, x, y);
+    emscripten_canvas_2d_move_to(data->current_canvas, x, y);
 
     for (idx = 1; idx < count; ++idx) {
         x = points[idx].x;
@@ -734,9 +759,9 @@ Emscripten_RenderDrawLines(SDL_Renderer *renderer, const SDL_FPoint *points, int
         if (idx < count - 1 || points[idx].y != points[idx - 1].y) {
             x += 0.5;
         }
-        emscripten_canvas_2d_line_to(data->default_canvas, x, y);
+        emscripten_canvas_2d_line_to(data->current_canvas, x, y);
     }
-    emscripten_canvas_2d_stroke(data->default_canvas);
+    emscripten_canvas_2d_stroke(data->current_canvas);
     return 0;
 }
 
@@ -748,11 +773,11 @@ Emscripten_RenderFillRects(SDL_Renderer *renderer, const SDL_FRect *rects, int c
     int idx;
 
     SDL_snprintf(buf, 30, "rgba(%i,%i,%i,%f)", renderer->r, renderer->g, renderer->b, renderer->a / 255.0f);
-    emscripten_canvas_2d_set_fill_style(data->default_canvas, buf);
+    emscripten_canvas_2d_set_fill_style(data->current_canvas, buf);
 
     for (idx = 0; idx < count; ++idx) {
         const SDL_FRect *rect = &rects[idx];
-        emscripten_canvas_2d_fill_rect(data->default_canvas, rect->x, rect->y, rect->w, rect->h);
+        emscripten_canvas_2d_fill_rect(data->current_canvas, rect->x, rect->y, rect->w, rect->h);
     }
 
     return 0;
@@ -765,7 +790,7 @@ Emscripten_RenderCopy(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_Re
     Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
     Emscripten_TextureData *tdata = (Emscripten_TextureData *)texture->driverdata;
 
-    emscripten_canvas_2d_draw_canvas(data->default_canvas, tdata->canvas, srcrect->x, srcrect->y, srcrect->w, srcrect->h, dstrect->x, dstrect->y, dstrect->w, dstrect->h);
+    emscripten_canvas_2d_draw_canvas(data->current_canvas, tdata->canvas, srcrect->x, srcrect->y, srcrect->w, srcrect->h, dstrect->x, dstrect->y, dstrect->w, dstrect->h);
     return 0;
 }
 
@@ -776,16 +801,16 @@ Emscripten_RenderCopyEx(SDL_Renderer *renderer, SDL_Texture *texture, const SDL_
     Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
     Emscripten_TextureData *tdata = (Emscripten_TextureData *)texture->driverdata;
 
-    emscripten_canvas_2d_save(data->default_canvas);
+    emscripten_canvas_2d_save(data->current_canvas);
 
-    emscripten_canvas_2d_translate(data->default_canvas, center->x + dstrect->x, center->y + dstrect->y);
-    emscripten_canvas_2d_rotate(data->default_canvas, degToRad(angle));
-    emscripten_canvas_2d_scale(data->default_canvas, flip & SDL_FLIP_HORIZONTAL ? -1 : 1, flip & SDL_FLIP_VERTICAL ? -1 : 1);
-    emscripten_canvas_2d_translate(data->default_canvas, -center->x, -center->y);
+    emscripten_canvas_2d_translate(data->current_canvas, center->x + dstrect->x, center->y + dstrect->y);
+    emscripten_canvas_2d_rotate(data->current_canvas, degToRad(angle));
+    emscripten_canvas_2d_scale(data->current_canvas, flip & SDL_FLIP_HORIZONTAL ? -1 : 1, flip & SDL_FLIP_VERTICAL ? -1 : 1);
+    emscripten_canvas_2d_translate(data->current_canvas, -center->x, -center->y);
 
-    emscripten_canvas_2d_draw_canvas(data->default_canvas, tdata->canvas, srcrect->x, srcrect->y, srcrect->w, srcrect->h, 0, 0, dstrect->w, dstrect->h);
+    emscripten_canvas_2d_draw_canvas(data->current_canvas, tdata->canvas, srcrect->x, srcrect->y, srcrect->w, srcrect->h, 0, 0, dstrect->w, dstrect->h);
 
-    emscripten_canvas_2d_restore(data->default_canvas);
+    emscripten_canvas_2d_restore(data->current_canvas);
     return 0;
 }
 
@@ -848,6 +873,8 @@ Emscripten_CreateRenderer(SDL_Window *window, Uint32 flags)
             return NULL;
         }
     }
+
+    data->current_canvas = data->default_canvas;
 
     /* setup rendering quality */
     const char *hint = SDL_GetHint(SDL_HINT_RENDER_SCALE_QUALITY);
