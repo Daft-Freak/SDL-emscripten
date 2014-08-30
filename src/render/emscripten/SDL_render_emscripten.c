@@ -53,12 +53,20 @@ static int emscripten_canvas_get_default()
 static int emscripten_canvas_create(int w, int h)
 {
     return EM_ASM_INT({
-        var canvas = document.createElement("canvas");
-        canvas.width = $0;
-        canvas.height = $1;
+        var canvas = null;
+
+        if(SDL2.canvas.canvasPool.length > 0) {
+            canvas = SDL2.canvas.canvasPool.pop();
+        } else {
+            canvas = document.createElement("canvas");
+        }
 
         SDL2.canvas.canvases.push(canvas);
         SDL2.canvas.contexts.push(null);
+
+        canvas.width = $0;
+        canvas.height = $1;
+
         return SDL2.canvas.canvases.length - 1;
     }, w, h);
 }
@@ -71,6 +79,13 @@ static void emscripten_canvas_destroy(int id)
         if (canvas) {
             SDL2.canvas.canvases[$0] = null;
             SDL2.canvas.contexts[$0] = null;
+            SDL2.canvas.canvasPool.push(canvas);
+
+            //trim nulls
+            while (SDL2.canvas.canvases[SDL2.canvas.canvases.length - 1] == null) {
+                SDL2.canvas.canvases.pop();
+                SDL2.canvas.contexts.pop();
+            }
         }
     }, id);
 }
@@ -821,7 +836,7 @@ Emscripten_CreateRenderer(SDL_Window *window, Uint32 flags)
         if(typeof(SDL2) === 'undefined')
             SDL2 = {};
         if(typeof(SDL2.canvas) === 'undefined')
-            SDL2.canvas = {canvases: [], contexts: []};
+            SDL2.canvas = {canvases: [], contexts: [], canvasPool: []};
     });
 
     /* init canvas */
