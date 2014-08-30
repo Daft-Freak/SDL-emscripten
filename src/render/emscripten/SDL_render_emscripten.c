@@ -27,6 +27,113 @@
 #include "../SDL_sysrender.h"
 #include "../../video/SDL_blit.h"
 
+#include <emscripten/emscripten.h>
+
+/* WIP canvas API */
+#define EMSCRIPTEN_CANVAS_CONTEXT_UNKNOWN -1
+#define EMSCRIPTEN_CANVAS_CONTEXT_NONE     0
+#define EMSCRIPTEN_CANVAS_CONTEXT_2D       1
+#define EMSCRIPTEN_CANVAS_CONTEXT_WEBGL    2
+
+static int emscripten_canvas_get_default()
+{
+    return EM_ASM_INT_V({
+        var idx = SDL2.canvas.canvases.indexOf(Module['canvas']);
+
+        if(idx != -1)
+            return idx;
+
+        SDL2.canvas.canvases.push(Module['canvas']);
+        SDL2.canvas.contexts.push(Module['ctx']);
+        return SDL2.canvas.canvases.length - 1;
+    });
+}
+
+static void emscripten_canvas_get_size(int id, int *w, int *h)
+{
+    EM_ASM_ARGS(
+    {
+        var canvas = SDL2.canvas.canvases[$0];
+        if (canvas) {
+            HEAP32[$1 >> 2] = canvas.width;
+            HEAP32[$2 >> 2] = canvas.height;
+        } else {
+            HEAP32[$1 >> 2] = 0;
+            HEAP32[$2 >> 2] = 0;
+        }
+    }, id, w, h);
+}
+
+static int emscripten_canvas_get_context_type(int id)
+{
+    return EM_ASM_INT({
+        var ctx = SDL2.canvas.contexts[$0];
+        if (!ctx) {
+            return 0; //NONE
+        }
+
+        if (ctx instanceof CanvasRenderingContext2D) {
+            return 1; //2D
+        } else if (ctx instanceof WebGLRenderingContext) {
+            return 2; //WebGL
+        }
+
+        return -1; //INVALID
+    }, id);
+}
+
+static int emscripten_canvas_create_context(int id, int type)
+{
+    return EM_ASM_INT({
+        var canvas = SDL2.canvas.canvases[$0];
+        if (!canvas) {
+            return -1;
+        }
+
+        switch ($1) {
+            case 1:
+                SDL2.canvas.contexts[$0] = canvas.getContext("2d");
+                break;
+            case 2:
+                SDL2.canvas.contexts[$0] = canvas.getContext("webgl");
+                break;
+            default:
+                return -1;
+        }
+
+        if (SDL2.canvas.contexts[$0]) {
+            return 0;
+        }
+
+        return -1;
+    }, id, type);
+}
+
+/* 2d context */
+static void emscripten_canvas_2d_set_fill_style(int id, const char *style)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.fillStyle = Pointer_stringify($1);
+        }
+    }, id, style);
+}
+
+static void emscripten_canvas_2d_fill_rect(int id, double x, double y, double w, double h)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.fillRect($1, $2, $3, $4);
+        }
+    }, id, x, y, w, h);
+}
+
+/* */
+
 /*************************************************************************************************
  * Bootstrap data                                                                                *
  *************************************************************************************************/
@@ -57,7 +164,7 @@ typedef struct Emscripten_TextureData
 
 typedef struct Emscripten_DriverData
 {
-
+    int default_canvas;
 } Emscripten_DriverData;
 
 /*************************************************************************************************
@@ -164,6 +271,17 @@ static void Emscripten_RenderPresent(SDL_Renderer *renderer);
 static int
 Emscripten_RenderClear(SDL_Renderer * renderer)
 {
+    Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
+    char buf[30];
+    int w, h;
+
+    /* cache this? */
+    emscripten_canvas_get_size(data->default_canvas, &w, &h);
+
+    SDL_snprintf(buf, 30, "rgba(%i,%i,%i,%f)", renderer->r, renderer->g, renderer->b, renderer->a / 255.0f);
+    emscripten_canvas_2d_set_fill_style(data->default_canvas, buf);
+    emscripten_canvas_2d_fill_rect(data->default_canvas, 0, 0, w, h);
+
     return 0;
 }
 
@@ -182,6 +300,18 @@ Emscripten_RenderDrawLines(SDL_Renderer *renderer, const SDL_FPoint *points, int
 static int
 Emscripten_RenderFillRects(SDL_Renderer *renderer, const SDL_FRect *rects, int count)
 {
+    Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
+    char buf[30];
+    int idx;
+
+    SDL_snprintf(buf, 30, "rgba(%i,%i,%i,%f)", renderer->r, renderer->g, renderer->b, renderer->a / 255.0f);
+    emscripten_canvas_2d_set_fill_style(data->default_canvas, buf);
+
+    for (idx = 0; idx < count; ++idx) {
+        const SDL_FRect *rect = &rects[idx];
+        emscripten_canvas_2d_fill_rect(data->default_canvas, rect->x, rect->y, rect->w, rect->h);
+    }
+
     return 0;
 }
 
@@ -241,6 +371,23 @@ Emscripten_CreateRenderer(SDL_Window *window, Uint32 flags)
     renderer->driverdata = data;
     renderer->window = window;
 
+    /* temp */
+    EM_ASM({
+        if(typeof(SDL2) === 'undefined')
+            SDL2 = {};
+        if(typeof(SDL2.canvas) === 'undefined')
+            SDL2.canvas = {canvases: [], contexts: []};
+    });
+
+    /* init canvas */
+    data->default_canvas = emscripten_canvas_get_default();
+
+    if (emscripten_canvas_get_context_type(data->default_canvas) == EMSCRIPTEN_CANVAS_CONTEXT_NONE) {
+        if (emscripten_canvas_create_context(data->default_canvas, EMSCRIPTEN_CANVAS_CONTEXT_2D) < 0) {
+            Emscripten_DestroyRenderer(renderer);
+            return NULL;
+        }
+    }
 
     /* Populate the function pointers for the module */
     renderer->WindowEvent         = &Emscripten_WindowEvent;
