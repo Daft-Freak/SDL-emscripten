@@ -191,6 +191,25 @@ static void emscripten_canvas_2d_translate(int id, double x, double y)
     }, id, x, y);
 }
 
+static void emscripten_canvas_2d_set_image_smoothing(int id, int enabled)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            if (typeof ctx.imageSmoothingEnabled !== 'undefined') {
+                ctx.imageSmoothingEnabled = $1 != 0;
+            } else if (typeof ctx.mozImageSmoothingEnabled !== 'undefined') {
+                ctx.mozImageSmoothingEnabled = $1 != 0;
+            } else if (typeof ctx.webkitImageSmoothingEnabled !== 'undefined') {
+                ctx.webkitImageSmoothingEnabled = $1 != 0;
+            }  else if (typeof ctx.msImageSmoothingEnabled !== 'undefined') {
+                ctx.msImageSmoothingEnabled = $1 != 0;
+            }
+        }
+    }, id, enabled);
+}
+
 static void emscripten_canvas_2d_set_stroke_style(int id, const char *style)
 {
     EM_ASM_ARGS(
@@ -813,6 +832,15 @@ Emscripten_CreateRenderer(SDL_Window *window, Uint32 flags)
             Emscripten_DestroyRenderer(renderer);
             return NULL;
         }
+    }
+
+    /* setup rendering quality */
+    const char *hint = SDL_GetHint(SDL_HINT_RENDER_SCALE_QUALITY);
+
+    if (!hint || *hint == '0' || SDL_strcasecmp(hint, "nearest") == 0) {
+        emscripten_canvas_2d_set_image_smoothing(data->default_canvas, 0);
+    } else {
+        emscripten_canvas_2d_set_image_smoothing(data->default_canvas, 1);
     }
 
     emscripten_canvas_2d_save(data->default_canvas);
