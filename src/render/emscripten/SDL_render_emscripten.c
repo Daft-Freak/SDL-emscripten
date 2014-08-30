@@ -136,6 +136,40 @@ static int emscripten_canvas_create_context(int id, int type)
 }
 
 /* 2d context */
+static void emscripten_canvas_2d_save(int id)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.save();
+        }
+    }, id);
+}
+
+static void emscripten_canvas_2d_restore(int id)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.restore();
+        }
+    }, id);
+}
+
+static void emscripten_canvas_2d_translate(int id, double x, double y)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.translate($1, $2);
+        }
+    }, id, x, y);
+}
+
+
 static void emscripten_canvas_2d_set_stroke_style(int id, const char *style)
 {
     EM_ASM_ARGS(
@@ -198,6 +232,17 @@ static void emscripten_canvas_2d_stroke(int id)
         var ctx = SDL2.canvas.contexts[$0];
         if (ctx) {
             ctx.stroke();
+        }
+    }, id);
+}
+
+static void emscripten_canvas_2d_clip(int id)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.clip();
         }
     }, id);
 }
@@ -285,6 +330,18 @@ static void emscripten_canvas_2d_line_to(int id, double x, double y)
     }, id, x, y);
 }
 
+static void emscripten_canvas_2d_rect(int id, double x, double y, double w, double h)
+{
+    EM_ASM_ARGS(
+    {
+        var ctx = SDL2.canvas.contexts[$0];
+        if (ctx) {
+            ctx.rect($1, $2, $3, $4);
+        }
+    }, id, x, y, w, h);
+}
+
+
 /* */
 
 /*************************************************************************************************
@@ -330,6 +387,7 @@ static void Emscripten_WindowEvent(SDL_Renderer * renderer,
                               const SDL_WindowEvent *event);
 static int Emscripten_UpdateViewport(SDL_Renderer * renderer);
 static void Emscripten_DestroyRenderer(SDL_Renderer *renderer);
+static void Emscripten_UpdateViewClip(SDL_Renderer *renderer);
 
 static void
 Emscripten_WindowEvent(SDL_Renderer * renderer, const SDL_WindowEvent *event)
@@ -340,22 +398,55 @@ Emscripten_WindowEvent(SDL_Renderer * renderer, const SDL_WindowEvent *event)
 static int
 Emscripten_UpdateViewport(SDL_Renderer * renderer)
 {
+    Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
+
+    emscripten_canvas_2d_restore(data->default_canvas);
+    emscripten_canvas_2d_save(data->default_canvas);
+    Emscripten_UpdateViewClip(renderer);
     return 0;
 }
 
 static int
 Emscripten_UpdateClipRect(SDL_Renderer * renderer)
 {
+    Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
+
+    emscripten_canvas_2d_restore(data->default_canvas);
+    emscripten_canvas_2d_save(data->default_canvas);
+    Emscripten_UpdateViewClip(renderer);
     return 0;
 }
 
 static void
 Emscripten_DestroyRenderer(SDL_Renderer *renderer)
 {
-    Emscripten_DriverContext *data = (Emscripten_DriverContext *)renderer->driverdata;
+    Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
 
     SDL_free(data);
     SDL_free(renderer);
+}
+
+static void
+Emscripten_UpdateViewClip(SDL_Renderer *renderer)
+{
+    Emscripten_DriverData *data = (Emscripten_DriverData *)renderer->driverdata;
+    const SDL_Rect *vRect = &renderer->viewport;
+
+    emscripten_canvas_2d_begin_path(data->default_canvas);
+
+    if (renderer->clipping_enabled) {
+        const SDL_Rect *cRect = &renderer->clip_rect;
+        SDL_Rect r = *vRect;
+
+        SDL_IntersectRect(cRect, vRect, &r);
+
+        emscripten_canvas_2d_rect(data->default_canvas, r.x, r.y, r.w, r.h);
+
+    } else {
+        emscripten_canvas_2d_rect(data->default_canvas, vRect->x, vRect->y, vRect->w, vRect->h);
+    }
+    emscripten_canvas_2d_clip(data->default_canvas);
+    emscripten_canvas_2d_translate(data->default_canvas, vRect->x, vRect->y);
 }
 
 /*************************************************************************************************
@@ -518,12 +609,18 @@ Emscripten_RenderClear(SDL_Renderer * renderer)
     char buf[30];
     int w, h;
 
+    /* undo clipping */
+    emscripten_canvas_2d_restore(data->default_canvas);
+
     /* cache this? */
     emscripten_canvas_get_size(data->default_canvas, &w, &h);
 
     SDL_snprintf(buf, 30, "rgba(%i,%i,%i,%f)", renderer->r, renderer->g, renderer->b, renderer->a / 255.0f);
     emscripten_canvas_2d_set_fill_style(data->default_canvas, buf);
     emscripten_canvas_2d_fill_rect(data->default_canvas, 0, 0, w, h);
+
+    emscripten_canvas_2d_save(data->default_canvas);
+    Emscripten_UpdateViewClip(renderer);
 
     return 0;
 }
@@ -679,6 +776,8 @@ Emscripten_CreateRenderer(SDL_Window *window, Uint32 flags)
             return NULL;
         }
     }
+
+    emscripten_canvas_2d_save(data->default_canvas);
 
     /* Populate the function pointers for the module */
     renderer->WindowEvent         = &Emscripten_WindowEvent;
