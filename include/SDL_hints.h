@@ -457,7 +457,19 @@ extern "C" {
  */
 #define SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES    "SDL_VIDEO_MAC_FULLSCREEN_SPACES"
 
-
+/**
+ *  \brief override the binding element for keyboard inputs for Emscripten builds
+ *
+ * This hint only applies to the emscripten platform
+ *
+ * The variable can be one of
+ *    "#window"      - The javascript window object (this is the default)
+ *    "#document"    - The javascript document object
+ *    "#screen"      - the javascript window.screen object
+ *    "#canvas"      - the WebGL canvas element
+ *    any other string without a leading # sign apples to the element on the page with that ID.
+ */
+#define SDL_HINT_EMSCRIPTEN_KEYBOARD_ELEMENT   "SDL_EMSCRIPTEN_KEYBOARD_ELEMENT"
 /**
  *  \brief  An enumeration of hint priorities
  */
