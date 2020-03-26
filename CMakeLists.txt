@@ -1835,6 +1835,9 @@ elseif(RISCOS)
 else() #if(32BLIT)?
   list(APPEND EXTRA_CFLAGS "-fno-short-enums" "-Wno-error=double-promotion")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-short-enums")
+
+  file(GLOB 32BLIT_MAIN_SOURCES ${SDL2_SOURCE_DIR}/src/main/32blit/*.cpp)
+  set(SDLMAIN_SOURCES ${SDLMAIN_SOURCES} ${32BLIT_MAIN_SOURCES})
   
   set(HAVE_STDIO_H 0) # has stdio, but it doesn't work
 

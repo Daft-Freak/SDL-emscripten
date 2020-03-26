@@ -83,6 +83,10 @@
 */
 #define SDL_MAIN_NEEDED
 
+#elif defined(TARGET_32BLIT_HW)
+
+#define SDL_MAIN_NEEDED
+
 #endif
 #endif /* SDL_MAIN_HANDLED */
 
