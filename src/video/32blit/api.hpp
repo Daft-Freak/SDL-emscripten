@@ -13,6 +13,11 @@ namespace blit {
 
   enum ScreenMode : uint8_t { lores, hires, hires_palette };
 
+  enum OpenMode {
+    read  = 1 << 0,
+    write = 1 << 1
+  };
+
   struct Vec2 {
     float x;
     float y;

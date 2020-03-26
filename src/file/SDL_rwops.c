@@ -62,6 +62,10 @@
 #include "nacl_io/nacl_io.h"
 #endif
 
+#ifdef TARGET_32BLIT_HW
+#include "32blit/SDL_32blitrwops.h"
+#endif
+
 #ifdef __WIN32__
 
 /* Functions to read/write Win32 API file pointers */
@@ -589,6 +593,20 @@ SDL_RWFromFile(const char *file, const char *mode)
     rwops->write = windows_file_write;
     rwops->close = windows_file_close;
     rwops->type = SDL_RWOPS_WINFILE;
+#elif TARGET_32BLIT_HW
+    rwops = SDL_AllocRW();
+    if (!rwops)
+        return NULL;            /* SDL_SetError already setup by SDL_AllocRW() */
+    if (ttblit_open(rwops, file, mode) < 0) {
+        SDL_FreeRW(rwops);
+        return NULL;
+    }
+    rwops->size = ttblit_size;
+    rwops->seek = ttblit_seek;
+    rwops->read = ttblit_read;
+    rwops->write = ttblit_write;
+    rwops->close = ttblit_close;
+    rwops->type = SDL_RWOPS_UNKNOWN;
 
 #elif HAVE_STDIO_H
     {

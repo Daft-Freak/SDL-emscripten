@@ -1835,6 +1835,15 @@ elseif(RISCOS)
 else() #if(32BLIT)?
   list(APPEND EXTRA_CFLAGS "-fno-short-enums" "-Wno-error=double-promotion")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-short-enums")
+  
+  set(HAVE_STDIO_H 0) # has stdio, but it doesn't work
+
+  # ... so we have a custom rwops impl
+  if(SDL_FILE)
+    file(GLOB EXTRA_SOURCES ${SDL2_SOURCE_DIR}/src/file/32blit/*.cpp)
+    set(SOURCE_FILES ${EXTRA_SOURCES} ${SOURCE_FILES})
+  endif()
+
   if(SDL_VIDEO)
     set(SDL_VIDEO_DRIVER_32BLIT 1)
     file(GLOB BLIT_VIDEO_SOURCES ${SDL2_SOURCE_DIR}/src/video/32blit/*.c ${SDL2_SOURCE_DIR}/src/video/32blit/*.cpp)
