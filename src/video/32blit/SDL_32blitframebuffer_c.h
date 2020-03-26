@@ -24,9 +24,17 @@
 
 #include "../../SDL_internal.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern int SDL_TTBlit_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format, void ** pixels, int *pitch);
 extern int SDL_TTBlit_UpdateWindowFramebuffer(_THIS, SDL_Window * window, const SDL_Rect * rects, int numrects);
 extern void SDL_TTBlit_DestroyWindowFramebuffer(_THIS, SDL_Window * window);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SDL_32blitframebuffer_c_h_ */
 
