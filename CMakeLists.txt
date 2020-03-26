@@ -1832,6 +1832,8 @@ elseif(RISCOS)
   if(SDL_AUDIO)
     CheckOSS()
   endif()
+else() #if(32BLIT)?
+list(APPEND EXTRA_CFLAGS "-fno-short-enums" "-Wno-error=double-promotion")
 endif()
 
 if(VIDEO_VULKAN)
