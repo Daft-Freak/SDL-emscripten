@@ -54,7 +54,9 @@ static int TTBlit_VideoInit(_THIS);
 static int TTBlit_SetDisplayMode(_THIS, SDL_VideoDisplay * display, SDL_DisplayMode * mode);
 static void TTBlit_VideoQuit(_THIS);
 
-/* TTBlit driver bootstrap functions */
+static int TTBlit_CreateWindow(_THIS, SDL_Window * window);
+
+/* 32Blit driver bootstrap functions */
 
 static int
 TTBlit_Available(void)
@@ -84,7 +86,11 @@ TTBlit_CreateDevice(int devindex)
     device->VideoInit = TTBlit_VideoInit;
     device->VideoQuit = TTBlit_VideoQuit;
     device->SetDisplayMode = TTBlit_SetDisplayMode;
+
     device->PumpEvents = TTBlit_PumpEvents;
+
+    device->CreateSDLWindow = TTBlit_CreateWindow;
+
     device->CreateWindowFramebuffer = SDL_TTBlit_CreateWindowFramebuffer;
     device->UpdateWindowFramebuffer = SDL_TTBlit_UpdateWindowFramebuffer;
     device->DestroyWindowFramebuffer = SDL_TTBlit_DestroyWindowFramebuffer;
@@ -132,6 +138,25 @@ void
 TTBlit_VideoQuit(_THIS)
 {
 }
+
+
+static int
+TTBlit_CreateWindow(_THIS, SDL_Window * window)
+{
+    // only fullscreen supported, at one size
+    window->flags |= SDL_WINDOW_FULLSCREEN;
+    window->w = 320;
+    window->h = 240;
+    window->windowed.w = window->w;
+    window->windowed.h = window->h;
+
+    /* One window, it always has focus */
+    SDL_SetMouseFocus(window);
+    SDL_SetKeyboardFocus(window);
+
+    return 0;
+}
+
 
 #endif /* SDL_VIDEO_DRIVER_32BLIT */
 
