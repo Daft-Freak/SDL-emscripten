@@ -1832,7 +1832,7 @@ elseif(RISCOS)
   if(SDL_AUDIO)
     CheckOSS()
   endif()
-else() #if(32BLIT)?
+elseif(32BLIT_HW)
   list(APPEND EXTRA_CFLAGS "-fno-short-enums" "-Wno-error=double-promotion")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-short-enums")
 
