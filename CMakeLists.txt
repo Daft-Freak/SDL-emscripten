@@ -1844,6 +1844,9 @@ elseif(32BLIT_HW)
   list(APPEND EXTRA_CFLAGS "-fno-short-enums" "-Wno-error=double-promotion")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-short-enums")
 
+  file(GLOB 32BLIT_CORE_SOURCES ${SDL2_SOURCE_DIR}/src/core/32blit/*.cpp)
+  set(SOURCE_FILES ${SOURCE_FILES} ${32BLIT_CORE_SOURCES})
+
   file(GLOB 32BLIT_MAIN_SOURCES ${SDL2_SOURCE_DIR}/src/main/32blit/*.cpp)
   set(SDLMAIN_SOURCES ${SDLMAIN_SOURCES} ${32BLIT_MAIN_SOURCES})
   

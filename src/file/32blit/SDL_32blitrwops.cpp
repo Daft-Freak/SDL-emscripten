@@ -26,7 +26,7 @@ extern "C" {
 #include "SDL_32blitrwops.h"
 }
 
-#include "../../video/32blit/api.hpp" // FIXME: move this
+#include "../../core/32blit/api.hpp"
 
 int SDLCALL
 ttblit_open(SDL_RWops * context, const char *filename, const char *mode)

@@ -25,7 +25,7 @@
 #include "../SDL_sysvideo.h"
 #include "SDL_32blitframebuffer_c.h"
 
-#include "api.hpp"
+#include "../../core/32blit/api.hpp"
 
 int SDL_TTBlit_CreateWindowFramebuffer(_THIS, SDL_Window * window, Uint32 * format, void ** pixels, int *pitch)
 {
