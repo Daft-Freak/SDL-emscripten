@@ -1849,6 +1849,13 @@ elseif(32BLIT_HW)
 
   file(GLOB 32BLIT_MAIN_SOURCES ${SDL2_SOURCE_DIR}/src/main/32blit/*.cpp)
   set(SDLMAIN_SOURCES ${SDLMAIN_SOURCES} ${32BLIT_MAIN_SOURCES})
+
+  if(SDL_AUDIO)
+    set(SDL_AUDIO_DRIVER_32BLIT 1)
+    file(GLOB 32BLIT_AUDIO_SOURCES ${SDL2_SOURCE_DIR}/src/audio/32blit/*.cpp)
+    set(SOURCE_FILES ${SOURCE_FILES} ${32BLIT_AUDIO_SOURCES})
+    set(HAVE_SDL_AUDIO TRUE)
+  endif()
   
   set(HAVE_STDIO_H 0) # has stdio, but it doesn't work
 
