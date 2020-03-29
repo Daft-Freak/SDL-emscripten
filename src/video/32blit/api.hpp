@@ -40,6 +40,37 @@ namespace blit {
     uint8_t *data;
   };
 
+  struct AudioChannel {
+      uint8_t   waveforms;
+      uint16_t  frequency;
+      uint16_t  volume;
+
+      uint16_t  attack_ms;
+      uint16_t  decay_ms;
+      uint16_t  sustain;
+      uint16_t  release_ms;
+      uint16_t  pulse_width;
+      int16_t   noise;
+  
+      uint32_t  waveform_offset;
+
+      int64_t   filter_last_sample;
+      bool      filter_enable;
+      uint16_t  filter_cutoff_frequency;
+
+      uint32_t  adsr_frame;
+      uint32_t  adsr_end_frame;
+      uint32_t  adsr;
+	    int32_t   adsr_step;
+      uint8_t   adsr_phase;
+
+      uint8_t   wave_buf_pos;
+      int16_t   wave_buffer[64];
+
+      void  *wave_callback_arg;
+      void  (*callback_waveBufferRefresh)(void *);
+  };
+
   #pragma pack(push, 4)
   struct API {
     uint32_t buttons;
@@ -50,7 +81,7 @@ namespace blit {
     Vec3 tilt;
     Pen LED;
 
-    void *channels; // TODO
+    AudioChannel *channels;
 
     Surface &(*set_screen_mode)  (ScreenMode new_mode);
     void (*set_screen_palette)  (const Pen *colours, int num_cols);
