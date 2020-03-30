@@ -28,6 +28,11 @@
 #include "SDL_gamecontroller.h"
 #include "SDL_joystick.h"
 
+/* Set up for C function definitions, even when using C++ */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct _SDL_JoystickDriver;
 
 /* Initialization and shutdown functions */
@@ -102,6 +107,11 @@ extern void SDL_PrivateJoystickBatteryLevel(SDL_Joystick * joystick,
 
 /* Internal sanity checking functions */
 extern SDL_bool SDL_PrivateJoystickValid(SDL_Joystick * joystick);
+
+/* Ends C function definitions when using C++ */
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SDL_joystick_c_h_ */
 
