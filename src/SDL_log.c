@@ -422,6 +422,11 @@ SDL_LogOutput(void *userdata, int category, SDL_LogPriority priority,
         fprintf(pFile, "%s: %s\n", SDL_priority_prefixes[priority], message);
         fclose (pFile);
     }
+#elif defined TARGET_32BLIT_HW
+    extern int blit_debugf(const char * psFormatString, ...);
+    {
+        blit_debugf("%s: %s\n", SDL_priority_prefixes[priority], message);
+    }
 #endif
 #if HAVE_STDIO_H
     fprintf(stderr, "%s: %s\n", SDL_priority_prefixes[priority], message);
