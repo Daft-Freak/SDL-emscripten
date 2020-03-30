@@ -74,6 +74,9 @@ static SDL_JoystickDriver *SDL_joystick_drivers[] = {
 #ifdef SDL_JOYSTICK_HIDAPI
     &SDL_HIDAPI_JoystickDriver,
 #endif
+#ifdef SDL_JOYSTICK_32BLIT
+    &SDL_32BLIT_JoystickDriver,
+#endif
 #if defined(SDL_JOYSTICK_DUMMY) || defined(SDL_JOYSTICK_DISABLED)
     &SDL_DUMMY_JoystickDriver
 #endif

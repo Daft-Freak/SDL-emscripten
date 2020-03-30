@@ -143,6 +143,7 @@ typedef struct _SDL_JoystickDriver
 #define SDL_MAX_RUMBLE_DURATION_MS  0xFFFF
 
 /* The available joystick drivers */
+extern SDL_JoystickDriver SDL_32BLIT_JoystickDriver;
 extern SDL_JoystickDriver SDL_ANDROID_JoystickDriver;
 extern SDL_JoystickDriver SDL_BSD_JoystickDriver;
 extern SDL_JoystickDriver SDL_DARWIN_JoystickDriver;
