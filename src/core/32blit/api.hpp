@@ -54,7 +54,7 @@ namespace blit {
   
       uint32_t  waveform_offset;
 
-      int64_t   filter_last_sample;
+      int32_t   filter_last_sample;
       bool      filter_enable;
       uint16_t  filter_cutoff_frequency;
 
@@ -71,9 +71,14 @@ namespace blit {
       void  (*callback_waveBufferRefresh)(void *);
   };
 
+  struct ButtonState {
+    uint32_t state;
+    uint32_t pressed, released; // state change since last update
+  };
+
   #pragma pack(push, 4)
   struct API {
-    uint32_t buttons;
+    ButtonState buttons;
     float hack_left;
     float hack_right;
     float vibration;
@@ -87,22 +92,25 @@ namespace blit {
     void (*set_screen_palette)  (const Pen *colours, int num_cols);
     uint32_t (*now)();
     uint32_t (*random)();
+    void (*exit)(bool is_error);
 
     // serial debug
     void (*debug)(std::string message);
     int  (*debugf)(const char * psFormatString, va_list args);
 
     // files
-    void *(*open_file)(std::string file, int mode);
+    void *(*open_file)(const std::string &file, int mode);
     int32_t (*read_file)(void *fh, uint32_t offset, uint32_t length, char* buffer);
     int32_t (*write_file)(void *fh, uint32_t offset, uint32_t length, const char* buffer);
     int32_t (*close_file)(void *fh);
     uint32_t (*get_file_length)(void *fh);
     //std::vector<FileInfo> (*list_files) (std::string path);
     void *list_files; // TODO
-    bool (*file_exists) (std::string path);
-    bool (*directory_exists) (std::string path);
-    bool (*create_directory) (std::string path);
+    bool (*file_exists) (const std::string &path);
+    bool (*directory_exists) (const std::string &path);
+    bool (*create_directory) (const std::string &path);
+    bool (*rename_file) (const std::string &old_name, const std::string &new_name);
+    bool (*remove_file) (const std::string &path);
 
     // profiler
     void (*enable_us_timer)();

@@ -101,7 +101,7 @@ static void
 TTBLIT_JoystickUpdate(SDL_Joystick * joystick)
 {
     for(int i = 0; i < joystick->nbuttons; i++)
-        SDL_PrivateJoystickButton(joystick, i, (blit::api.buttons & (1 << i)) ? 1 : 0);
+        SDL_PrivateJoystickButton(joystick, i, (blit::api.buttons.state & (1 << i)) ? 1 : 0);
 
     SDL_PrivateJoystickAxis(joystick, 0, (Sint16)(blit::api.joystick.x * 32767.0f));
     SDL_PrivateJoystickAxis(joystick, 1, (Sint16)(blit::api.joystick.y * 32767.0f));
